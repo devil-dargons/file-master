@@ -1,0 +1,5 @@
+PySide6>=6.5.0
+send2trash>=1.8.0
+opencv-contrib-python>=4.8.0
+numpy>=1.24.0
+pyinstaller>=6.0.0
