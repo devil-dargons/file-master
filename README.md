@@ -34,7 +34,7 @@ GUI 框架: PySide6 (Qt for Python)
 
 bash
 # 克隆项目
-git clone https://github.com/yourusername/FileMaster.git
+git clone https://gitee.com/devil_dragons/file-master.git
 cd FileMaster
 
 # 创建虚拟环境
