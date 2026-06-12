@@ -64,7 +64,28 @@ pyinstaller filemaster.spec --clean
 注意：打包后的程序会将数据库和缩略图存储在 %APPDATA%\FileMaster 目录下，以确保数据在不同启动路径下的持久性与安全性。
 📁 项目结构
 text
-123456789101112131415161718192021
+FileMaster/
+├── main.py                 # 程序入口
+├── filemaster.spec         # PyInstaller 打包配置
+├── src/
+│   ├── config.py           # 全局配置 (路径、分页大小等)
+│   ├── core/               # 核心业务逻辑
+│   │   ├── scanner.py      # 文件扫描引擎 (增量/全量)
+│   │   ├── file_service.py # 文件操作服务 (移动/复制/删除)
+│   │   └── thumbnail_engine.py # 异步缩略图生成线程
+│   ├── db/                 # 数据库层
+│   │   ├── database_manager.py # SQLite 连接管理
+│   │   └── dao.py          # 数据访问对象 (CRUD)
+│   ├── ui/                 # 界面层
+│   │   ├── main_window.py  # 主窗口布局
+│   │   ├── panels/         # 功能面板 (列表/去重/标签)
+│   │   ├── dialogs/        # 弹窗组件
+│   │   └── widgets/        # 自定义控件 (表格/图片代理)
+│   └── utils/              # 工具函数
+│       ├── file_utils.py   # 文件分类/缩略图提取
+│       └── tag_helper.py   # 标签管理辅助逻辑
+└── data/                   # 源码运行时产生的数据 (打包后移至 AppData)
+
 📝 待办事项 (TODO)
 支持更多视频编码格式的解码器集成。
 增加文件内容全文检索功能。
