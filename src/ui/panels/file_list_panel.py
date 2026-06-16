@@ -2,7 +2,7 @@
 from __future__ import annotations
 import os
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QMenu, 
+    QWidget, QVBoxLayout, QHBoxLayout,QGridLayout, QPushButton, QMenu, 
     QFileDialog, QInputDialog, QMessageBox, QComboBox, QLabel, QLineEdit,
     QListWidget, QListWidgetItem
 )
@@ -58,60 +58,110 @@ class FileListPanel(QWidget):
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
         
-        # 1. 顶部工具栏 (包含标签搜索)
-        toolbar = QHBoxLayout()
+        # ==========================================
+        # 1. 顶部：搜索条件区 (按照要求重新排序)
+        # ==========================================
+        grid_layout = QGridLayout()
+        grid_layout.setContentsMargins(8, 8, 8, 8)
+        grid_layout.setHorizontalSpacing(12)
+        grid_layout.setVerticalSpacing(8)
         
-        self.input_folder = QLineEdit(); self.input_folder.setPlaceholderText("📂 路径..."); self.input_folder.setFixedWidth(120)
-        self.input_name = QLineEdit(); self.input_name.setPlaceholderText("🔍 名称..."); self.input_name.setFixedWidth(120)
-        self.input_type = QLineEdit(); self.input_type.setPlaceholderText("🏷️ 类型..."); self.input_type.setFixedWidth(100)
-        self.input_md5 = QLineEdit(); self.input_md5.setPlaceholderText("#️⃣ MD5..."); self.input_md5.setFixedWidth(150)
+        # --- 第一行：路径、名称、标签 ---
+        self.input_folder = QLineEdit()
+        self.input_folder.setPlaceholderText("📂 路径包含...")
+        self.input_folder.setMinimumWidth(120)
         
-        # 标签搜索下拉框 (支持手动输入)
+        self.input_name = QLineEdit()
+        self.input_name.setPlaceholderText("🔍 文件名包含...")
+        self.input_name.setMinimumWidth(120)
+        
         self.combo_tag_search = QComboBox()
         self.combo_tag_search.setEditable(True)
-        self.combo_tag_search.setPlaceholderText("🔖 标签搜索 (可多选/手填)...")
-        self.combo_tag_search.setFixedWidth(200)
-        self._refresh_tag_combo() # 初始化标签列表
+        self.combo_tag_search.setPlaceholderText("🔖 标签筛选 (支持逗号分隔)...")
+        self.combo_tag_search.setMinimumWidth(150)
+
+        grid_layout.addWidget(QLabel("路径:"), 0, 0)
+        grid_layout.addWidget(self.input_folder, 0, 1)
+        grid_layout.addWidget(QLabel("名称:"), 0, 2)
+        grid_layout.addWidget(self.input_name, 0, 3)
+        grid_layout.addWidget(QLabel("标签:"), 0, 4)
+        grid_layout.addWidget(self.combo_tag_search, 0, 5)
+
+        # --- 第二行：类型、MD5、搜索、清空 ---
+        self.input_type = QLineEdit()
+        self.input_type.setPlaceholderText("🏷️ 类型(如:jpg,mp4)...")
+        self.input_type.setMinimumWidth(100)
         
-        toolbar.addWidget(QLabel("路径:")); toolbar.addWidget(self.input_folder)
-        toolbar.addWidget(QLabel("名称:")); toolbar.addWidget(self.input_name)
-        toolbar.addWidget(QLabel("类型:")); toolbar.addWidget(self.input_type)
-        toolbar.addWidget(QLabel("标签:")); toolbar.addWidget(self.combo_tag_search)
-        toolbar.addWidget(QLabel("MD5:")); toolbar.addWidget(self.input_md5)
+        self.input_md5 = QLineEdit()
+        self.input_md5.setPlaceholderText("#️⃣ MD5 精确匹配...")
+        self.input_md5.setMinimumWidth(140)
         
-        self.btn_search = QPushButton("搜索")
-        self.btn_clear = QPushButton("清空")
-        toolbar.addWidget(self.btn_search); toolbar.addWidget(self.btn_clear)
+        self.btn_search = QPushButton("🔍 搜索")
+        self.btn_search.setFixedWidth(80)
+        self.btn_search.setStyleSheet("background-color: #2196F3; color: white; font-weight: bold; border-radius: 4px;")
         
-        toolbar.addSpacing(20)
-        toolbar.addWidget(QLabel("每页:"))
-        self.combo_page_size = QComboBox()
-        self.combo_page_size.addItems(["10", "25", "50", "100"])
-        index = self.combo_page_size.findText(str(self.page_size))
-        if index >= 0: self.combo_page_size.setCurrentIndex(index)
-        toolbar.addWidget(self.combo_page_size)
+        self.btn_clear = QPushButton("🗑️ 清空")
+        self.btn_clear.setFixedWidth(80)
+
+        grid_layout.addWidget(QLabel("类型:"), 1, 0)
+        grid_layout.addWidget(self.input_type, 1, 1)
+        grid_layout.addWidget(QLabel("MD5:"), 1, 2)
+        grid_layout.addWidget(self.input_md5, 1, 3)
+        grid_layout.addWidget(self.btn_search, 1, 4)
+        grid_layout.addWidget(self.btn_clear, 1, 5)
         
-        toolbar.addStretch()
-        main_layout.addLayout(toolbar)
+        # 让输入框所在的列(1, 3, 5)自动拉伸，填满窗口宽度
+        grid_layout.setColumnStretch(1, 1)
+        grid_layout.setColumnStretch(3, 1)
+        grid_layout.setColumnStretch(5, 1)
+
+        main_layout.addLayout(grid_layout)
         
-        # 2. 表格
+        # ==========================================
+        # 2. 中间：核心数据表格
+        # ==========================================
         self.table = CustomTable()
         self.table.set_columns(self.COLUMNS)
         self.table.setItemDelegateForColumn(0, ImageDelegate(self.table))
-        # 启用文本选择以便 Ctrl+C
         self.table.setSelectionMode(CustomTable.ExtendedSelection)
         main_layout.addWidget(self.table, 1)
         
-        # 3. 分页
+        # ==========================================
+        # 3. 底部：分页控制与全局策略 (左右调换)
+        # ==========================================
         page_layout = QHBoxLayout()
+        
+        # 【左侧】：列表控制与操作策略
+        page_layout.addWidget(QLabel("每页显示:"))
+        self.combo_page_size = QComboBox()
+        self.combo_page_size.addItems(["10", "25", "50", "100"])
+        self.combo_page_size.setFixedWidth(70)
+        page_layout.addWidget(self.combo_page_size)
+        
+        page_layout.addSpacing(20) # 间隔
+        
+        page_layout.addWidget(QLabel("冲突策略:"))
+        self.conflict_combo = QComboBox()
+        self.conflict_combo.addItems(["跳过 (安全)", "覆盖 (危险)", "自动重命名"])
+        self.conflict_combo.setFixedWidth(110)
+        self.conflict_combo.setToolTip("移动/复制文件时，遇到同名文件的处理方式")
+        page_layout.addWidget(self.conflict_combo)
+        
+        # 弹簧：把右侧的分页控件推到最右边
+        page_layout.addStretch() 
+        
+        # 【右侧】：分页导航
         self.btn_prev = QPushButton("上一页")
+        self.btn_prev.setFixedWidth(80)
         self.lbl_page_info = QLabel("第 1 / 1 页")
+        self.lbl_page_info.setStyleSheet("color: #666; padding: 0 10px;")
         self.btn_next = QPushButton("下一页")
-        page_layout.addStretch()
+        self.btn_next.setFixedWidth(80)
+        
         page_layout.addWidget(self.btn_prev)
         page_layout.addWidget(self.lbl_page_info)
         page_layout.addWidget(self.btn_next)
-        page_layout.addStretch()
+
         main_layout.addLayout(page_layout)
 
     def _refresh_tag_combo(self):
@@ -139,6 +189,34 @@ class FileListPanel(QWidget):
         
         # 监听表格单元格双击，如果是第一列则放大图片
         self.table.cellDoubleClicked.connect(self._on_cell_double_clicked)
+        
+        # 【新增 1】监听局部缩略图更新信号，防止 UI 卡死
+        self.signals.thumbnail_updated.connect(self._on_thumbnail_updated)
+        
+        # 【新增 2】监听表格选中变化，发射全局信号同步右侧详情
+        self.table.itemSelectionChanged.connect(self._on_selection_changed)
+
+    def _on_thumbnail_updated(self, file_path: str, thumb_path: str):
+        """局部刷新：只更新当前页中匹配的那一行，不重新查询数据库"""
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, 0)
+            if item:
+                data = item.data(Qt.UserRole)
+                if data and data.get('path') == file_path:
+                    # 更新内存中的数据
+                    data['thumbnail_path'] = thumb_path
+                    item.setData(Qt.UserRole, data)
+                    # 强制重绘表格视口，触发 ImageDelegate 重新绘制图片
+                    self.table.viewport().update()
+                    break # 找到并更新后即可退出循环
+
+    def _on_selection_changed(self):
+        """当表格选中项改变时，通知全局更新右侧详情面板"""
+        selected_data = self.table.get_selected_rows_data()
+        if selected_data:
+            self.signals.file_selected.emit(selected_data[0])
+        else:
+            self.signals.file_selected.emit({})
 
     def _on_cell_double_clicked(self, row, col):
         if col == 0: # 预览列
@@ -170,59 +248,41 @@ class FileListPanel(QWidget):
         self.search_folder = self.input_folder.text().strip()
         self.search_name = self.input_name.text().strip()
         self.search_md5 = self.input_md5.text().strip()
-        self.search_type = self.input_type.text().strip().lower()
+        self.search_type = self.input_type.text().strip()
         
         # 解析标签搜索 (支持逗号分隔的多标签)
         tag_input = self.combo_tag_search.currentText().strip()
-        search_tag_names = [t.strip() for t in tag_input.split(',') if t.strip()] if tag_input else []
+        search_tag_names = [t.strip() for t in tag_input.split(',') if t.strip()] if tag_input else None
 
-        # 注意：由于 DAO 层目前只支持单表分页，多标签交集查询较复杂。
-        # 这里为了演示，先获取基础分页数据，再在前端进行标签过滤。
-        # 生产环境建议在 DAO 层实现带标签过滤的分页 SQL。
+        # 【核心修复】将过滤条件直接传给 DAO，由 SQL 保证 total_count 的绝对准确
         data, self.total_count = self.file_dao.get_files_page(
             page, self.page_size, 
             folder_path=self.search_folder, 
             file_name=self.search_name, 
-            md5=self.search_md5
+            md5=self.search_md5,
+            file_type=self.search_type,
+            tag_names=search_tag_names
         )
         
-        # 预处理数据
-        filtered_data = []
+        # 仅为 UI 展示补充字段 (不影响分页逻辑)
         for item in data:
             item['file_category'] = get_file_category(item['path'])
             item['tags_str'] = self.file_dao.get_file_tags_str(item['id'])
-            
-            # 前端过滤逻辑
-            if self.search_type:
-                ext = item['name'].split('.')[-1].lower() if '.' in item['name'] else ""
-                if self.search_type not in item['file_category'].lower() and self.search_type not in ext:
-                    continue
-            
-            if search_tag_names:
-                # 检查文件是否包含所有搜索标签
-                file_tags = [t.strip() for t in item['tags_str'].split(',')]
-                if not all(st in file_tags for st in search_tag_names):
-                    continue
-                    
-            filtered_data.append(item)
-            
-        data = filtered_data
-        self.total_count = len(filtered_data) # 修正总数
 
         self.table.load_data(data, self.COLUMN_KEYS)
         
+        # 计算总页数 (现在 self.total_count 是数据库返回的真实全局总数)
         total_pages = max(1, (self.total_count + self.page_size - 1) // self.page_size)
         self.lbl_page_info.setText(f"第 {page} / {total_pages} 页 (共 {self.total_count} 条)")
         self.btn_prev.setEnabled(page > 1)
         self.btn_next.setEnabled(page < total_pages)
         
-        # 异步缩略图
+        # 异步缩略图：只让视频去后台生成，图片直接用原图渲染
         video_exts = {'mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'}
-        image_exts = {'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'ico'}
         for row_data in data:
             thumb_path = row_data.get('thumbnail_path')
             ext = row_data['name'].split('.')[-1].lower()
-            if (ext in video_exts or ext in image_exts) and not thumb_path:
+            if ext in video_exts and not thumb_path:
                 self.thumb_manager.add_task(row_data['path'], row_data['md5'])
 
     def _prev_page(self):

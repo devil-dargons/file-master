@@ -50,8 +50,8 @@ class ThumbnailManager(QThread):
             dao = FileDAO(db)
             dao.update_thumbnail_path(file_path, thumb_path)
             
-            # 2. 发射信号通知 UI 刷新（UI 会重新查询数据库并更新表格）
-            self.signals.data_changed.emit() 
+            # 2. 【核心修改】发射局部更新信号，而不是全局 data_changed，防止表格频繁重载卡死
+            self.signals.thumbnail_updated.emit(file_path, thumb_path)
 
     def stop(self):
         self.is_running = False

@@ -24,7 +24,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("FileMaster - 智能文件管家 v1.0")
-        self.resize(1200, 800)
+        self.resize(1200, 650)
+        self.setMinimumSize(800, 550) 
         
         self.db_manager = DatabaseManager()
         self.file_dao = FileDAO(self.db_manager)
@@ -60,7 +61,6 @@ class MainWindow(QMainWindow):
         scan_toolbar.addWidget(QLabel("扫描类型:"))
         self.combo_scan_type = QComboBox()
         self.combo_scan_type.setEditable(True)
-        from src.config import FILE_TYPE_PRESETS
         self.combo_scan_type.addItems(FILE_TYPE_PRESETS)
         self.combo_scan_type.setFixedWidth(250)
         scan_toolbar.addWidget(self.combo_scan_type)
@@ -93,7 +93,7 @@ class MainWindow(QMainWindow):
         
         # 1. 左侧导航栏
         self.nav_list = QListWidget()
-        self.nav_list.setFixedWidth(180)
+        self.nav_list.setFixedWidth(160) # 稍微调窄
         self.nav_list.setIconSize(QSize(24, 24))
         self.nav_list.setStyleSheet("font-size: 14px; padding: 5px;")
         
@@ -129,8 +129,8 @@ class MainWindow(QMainWindow):
         self.panel_detail = DetailPanel()
         content_splitter.addWidget(self.panel_detail)
         
-        # 设置初始分割比例：左(180) : 中(800) : 右(350)
-        content_splitter.setSizes([180, 800, 350])
+        # 【核心修改】调整初始比例，总和约 1050，防止窗口过宽超出屏幕无法缩小
+        content_splitter.setSizes([140, 500, 260])
         main_layout.addWidget(content_splitter, 1)
         
         # ==========================================
@@ -141,23 +141,13 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage("欢迎使用 FileMaster。请选择路径并开始扫描。")
 
         # ==========================================
-        # 绑定联动信号
+        # 【核心修改】绑定全局联动信号
         # ==========================================
-        # 当文件列表选中项改变时，更新右侧详情面板
-        self.panel_file_list.table.itemSelectionChanged.connect(self._on_selection_changed)
+        # 移除原来局部的 table.itemSelectionChanged 绑定。
+        # 改为监听全局信号：任何面板选中文件，都统一更新右侧详情面板
+        self.signals.file_selected.connect(self.panel_detail.update_detail)
     
-    def _on_selection_changed(self):
-        """监听表格选择变化，更新右侧详情"""
-        selected_items = self.panel_file_list.table.selectedItems()
-        if selected_items:
-            # 获取第一行选中的数据
-            row = selected_items[0].row()
-            first_item = self.panel_file_list.table.item(row, 0)
-            if first_item:
-                data = first_item.data(Qt.UserRole)
-                self.panel_detail.update_detail(data)
-        else:
-            self.panel_detail.update_detail(None)
+    # 注意：原有的 _on_selection_changed 方法已删除，因为现在由各个 Panel 自己发射全局信号。
 
     def _bind_signals(self):
         self.signals.scan_progress.connect(self._on_scan_progress)

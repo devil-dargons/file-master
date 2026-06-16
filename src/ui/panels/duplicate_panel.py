@@ -1,3 +1,4 @@
+# === 文件路径: src/ui/panels/duplicate_panel.py ===
 from __future__ import annotations
 import time
 from PySide6.QtWidgets import (
@@ -67,6 +68,25 @@ class DuplicatePanel(QWidget):
         self.btn_move_all.clicked.connect(self._on_move_all_groups)
         self.tree.customContextMenuRequested.connect(self._on_context_menu)
         self.signals.data_changed.connect(self._load_data)
+        
+        # 【新增】绑定树形控件的选中事件，用于同步右侧详情面板
+        self.tree.itemSelectionChanged.connect(self._on_selection_changed)
+
+    def _on_selection_changed(self):
+        """【新增】当去重列表选中项改变时，通知全局更新右侧详情面板"""
+        selected_items = self.tree.selectedItems()
+        if selected_items:
+            item = selected_items[0]
+            data = item.data(0, Qt.UserRole)
+            # 确保选中的是具体的文件节点，而不是 MD5 分组节点
+            if data and data.get('type') == 'file':
+                file_data = data.get('data')
+                if file_data:
+                    self.signals.file_selected.emit(file_data)
+                    return
+        
+        # 如果选中的是分组节点，或者取消了选中，则清空右侧详情
+        self.signals.file_selected.emit({})
 
     def _load_data(self):
         self.tree.clear()
@@ -126,7 +146,6 @@ class DuplicatePanel(QWidget):
             act_keep = menu.addAction("✅ 保留此项，清理同组其他")
             act_rename = menu.addAction("重命名...")
             act_move = menu.addAction("移动此项到...")
-            # 修复：使用 HTML 标签改变颜色，而不是 setStyleSheet
             act_delete = menu.addAction("删除此项")
             
             action = menu.exec(self.tree.mapToGlobal(pos))

@@ -43,8 +43,10 @@ class FileDAO:
     # ==========================================
     # 支持多条件筛选的分页查询
     # ==========================================
-    def get_files_page(self, page: int = 1, page_size: int = 50, 
-                       folder_path: str = "", file_name: str = "", md5: str = "") -> tuple[list[dict], int]:
+    def get_files_page(self, page: int = 1, page_size: int = 50, folder_path: str = "", file_name: str = "", md5: str = "",file_type: str = "", tag_names: list = None) -> tuple[list[dict], int]:
+        """
+        支持多条件筛选的分页查询 (SQL 级过滤，确保总数准确)
+        """
         offset = (page - 1) * page_size
         conn = self.db.get_connection()
         cursor = conn.cursor()
@@ -62,9 +64,29 @@ class FileDAO:
             conditions.append("md5 = ?")
             params.append(md5)
             
+        # 1. 处理文件类型 (支持输入扩展名如 'mp4' 或 '.mp4' 或 'jpg')
+        if file_type:
+            ft = file_type.strip().lower()
+            if not ft.startswith('.'):
+                ft = '.' + ft
+            conditions.append("name LIKE ?")
+            params.append(f"%{ft}")
+            
+        # 2. 处理标签 (使用 EXISTS 确保文件拥有所有指定的标签)
+        if tag_names:
+            for tag in tag_names:
+                conditions.append("""
+                    EXISTS (
+                        SELECT 1 FROM file_tags ft 
+                        JOIN tags t ON ft.tag_id = t.id 
+                        WHERE ft.file_id = files.id AND t.tag_name LIKE ?
+                    )
+                """)
+                params.append(f"%{tag}%")
+                
         where_clause = " AND ".join(conditions) if conditions else "1=1"
         
-        # 1. 获取总数
+        # 1. 获取符合条件的真实总数
         count_sql = f"SELECT COUNT(*) FROM files WHERE {where_clause}"
         cursor.execute(count_sql, params)
         total_count = cursor.fetchone()[0]

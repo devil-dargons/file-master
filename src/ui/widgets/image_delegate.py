@@ -13,13 +13,25 @@ class ImageDelegate(QStyledItemDelegate):
         # 获取单元格绑定的数据
         data = index.data(Qt.UserRole)
         
-        # 如果数据是字典，尝试从中提取 thumbnail_path
         image_path = None
+        file_path = ''
+        file_name = ''
+        
         if isinstance(data, dict):
             image_path = data.get('thumbnail_path')
+            file_path = data.get('path', '')
+            file_name = data.get('name', '')
         elif isinstance(data, str):
             image_path = data
+            file_path = data
             
+        # 【核心优化】如果没有缩略图，且是图片格式，则直接使用原图路径
+        if not image_path and file_name:
+            ext = file_name.split('.')[-1].lower() if '.' in file_name else ""
+            image_exts = {'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'ico'}
+            if ext in image_exts and os.path.exists(file_path):
+                image_path = file_path
+                
         # 只有当有有效路径且文件存在时才绘制图片
         if image_path and os.path.exists(image_path):
             pixmap = QPixmap(image_path)
