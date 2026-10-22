@@ -8,10 +8,11 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 
-from src.db.database_manager import DatabaseManager
+from src.db.database import DatabaseManager
 from src.db.dao import FileDAO
 from src.core.file_service import FileService, STRATEGY_SKIP
-from src.core.signals import AppSignals
+from src.core.models import FileRecord
+from src.ui.qt_bridge import get_bridge
 from src.ui.dialogs.confirm_dialog import ConfirmDialog
 from src.ui.dialogs.rename_dialog import RenameDialog
 
@@ -23,7 +24,7 @@ class DuplicatePanel(QWidget):
         self.db = db_manager
         self.file_dao = FileDAO(db_manager)
         self.file_service = file_service
-        self.signals = AppSignals()
+        self.bridge = get_bridge()
         
         self._init_ui()
         self._bind_events()
@@ -37,7 +38,7 @@ class DuplicatePanel(QWidget):
         toolbar.addWidget(self.btn_refresh)
         
         self.btn_auto_clean = QPushButton("⚡ 一键智能清理 (保留每组首个)")
-        self.btn_auto_clean.setStyleSheet("background-color: #ff9800; color: white; padding: 5px 10px;")
+        self.btn_auto_clean.setObjectName("dangerButton")
         toolbar.addWidget(self.btn_auto_clean)
         
         self.btn_move_all = QPushButton("批量移动本组其余文件...")
@@ -67,13 +68,13 @@ class DuplicatePanel(QWidget):
         self.btn_auto_clean.clicked.connect(self._on_auto_clean)
         self.btn_move_all.clicked.connect(self._on_move_all_groups)
         self.tree.customContextMenuRequested.connect(self._on_context_menu)
-        self.signals.data_changed.connect(self._load_data)
+        self.bridge.data_changed.connect(self._load_data)
         
         # 【新增】绑定树形控件的选中事件，用于同步右侧详情面板
         self.tree.itemSelectionChanged.connect(self._on_selection_changed)
 
     def _on_selection_changed(self):
-        """【新增】当去重列表选中项改变时，通知全局更新右侧详情面板"""
+        """当去重列表选中项改变时，通知全局更新右侧详情面板"""
         selected_items = self.tree.selectedItems()
         if selected_items:
             item = selected_items[0]
@@ -82,23 +83,23 @@ class DuplicatePanel(QWidget):
             if data and data.get('type') == 'file':
                 file_data = data.get('data')
                 if file_data:
-                    self.signals.file_selected.emit(file_data)
+                    self.bridge.file_selected.emit(file_data)
                     return
-        
+
         # 如果选中的是分组节点，或者取消了选中，则清空右侧详情
-        self.signals.file_selected.emit({})
+        self.bridge.file_selected.emit(None)
 
     def _load_data(self):
         self.tree.clear()
         groups = self.file_dao.get_duplicate_groups()
         
         total_groups = len(groups)
-        total_files = sum(g['count'] for g in groups)
+        total_files = sum(g.count for g in groups)
         self.lbl_summary.setText(f"共 {total_groups} 组重复，涉及 {total_files} 个文件")
-        
+
         for group in groups:
-            md5 = group['md5']
-            files = group['files']
+            md5 = group.md5
+            files = group.files
             
             group_text = f"MD5: {md5[:16]}... (共 {len(files)} 个重复文件)"
             group_item = QTreeWidgetItem(self.tree, [group_text, "", "", ""])
@@ -108,14 +109,14 @@ class DuplicatePanel(QWidget):
             group_item.setFlags(group_item.flags() & ~Qt.ItemIsSelectable)
             
             for file_data in files:
-                size_str = self._format_size(file_data['size'])
-                time_str = self._format_time(file_data['modified_time'])
-                
+                size_str = self._format_size(file_data.size)
+                time_str = self._format_time(file_data.modified_time)
+
                 item = QTreeWidgetItem(group_item, [
-                    file_data['name'], size_str, time_str, file_data['path']
+                    file_data.name, size_str, time_str, file_data.path
                 ])
                 item.setData(0, Qt.UserRole, {"type": "file", "data": file_data})
-                item.setToolTip(3, file_data['path'])
+                item.setToolTip(3, file_data.path)
 
     def _format_size(self, size_bytes: int) -> str:
         for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
@@ -158,8 +159,8 @@ class DuplicatePanel(QWidget):
         files = [group_item.child(i).data(0, Qt.UserRole)['data'] for i in range(group_item.childCount())]
         if len(files) <= 1: return
         keep_file = files[keep_index]
-        to_delete_paths = [f['path'] for i, f in enumerate(files) if i != keep_index]
-        msg = f"确定要清理此重复组吗？\n\n【保留】: {keep_file['name']}\n【删除】: {len(to_delete_paths)} 个其他副本\n(删除的文件将移入回收站)"
+        to_delete_paths = [f.path for i, f in enumerate(files) if i != keep_index]
+        msg = f"确定要清理此重复组吗？\n\n【保留】: {keep_file.name}\n【删除】: {len(to_delete_paths)} 个其他副本\n(删除的文件将移入回收站)"
         if ConfirmDialog.show_confirm("确认智能清理", msg, self):
             self.file_service.delete_files(to_delete_paths, use_trash=True)
 
@@ -180,7 +181,7 @@ class DuplicatePanel(QWidget):
                 group_item = self.tree.topLevelItem(i)
                 files = [group_item.child(j).data(0, Qt.UserRole)['data'] for j in range(group_item.childCount())]
                 if len(files) > 1:
-                    to_delete = [f['path'] for k, f in enumerate(files) if k != 0]
+                    to_delete = [f.path for k, f in enumerate(files) if k != 0]
                     self.file_service.delete_files(to_delete, use_trash=True)
                     total_deleted += len(to_delete)
             QMessageBox.information(self, "清理完成", f"智能清理完成！共删除了 {total_deleted} 个重复副本。")
@@ -188,7 +189,7 @@ class DuplicatePanel(QWidget):
     def _move_rest_of_group(self, group_item: QTreeWidgetItem):
         target_dir = QFileDialog.getExistingDirectory(self, "选择移动目标文件夹")
         if not target_dir: return
-        to_move_paths = [group_item.child(i).data(0, Qt.UserRole)['data']['path'] for i in range(1, group_item.childCount())]
+        to_move_paths = [group_item.child(i).data(0, Qt.UserRole)['data'].path for i in range(1, group_item.childCount())]
         if to_move_paths:
             self.file_service.move_files(to_move_paths, target_dir, conflict_strategy=STRATEGY_SKIP)
 
@@ -199,24 +200,24 @@ class DuplicatePanel(QWidget):
         for i in range(self.tree.topLevelItemCount()):
             group_item = self.tree.topLevelItem(i)
             for j in range(1, group_item.childCount()):
-                all_paths.append(group_item.child(j).data(0, Qt.UserRole)['data']['path'])
+                all_paths.append(group_item.child(j).data(0, Qt.UserRole)['data'].path)
         if all_paths:
             self.file_service.move_files(all_paths, target_dir, conflict_strategy=STRATEGY_SKIP)
 
-    def _rename_single_file(self, file_data: dict):
+    def _rename_single_file(self, file_data: FileRecord):
         dialog = RenameDialog([file_data], self)
         if dialog.exec():
             for old_path, new_name in dialog.get_rename_map().items():
                 self.file_service.rename_file(old_path, new_name)
 
-    def _transfer_single_file(self, file_data: dict, is_move: bool):
+    def _transfer_single_file(self, file_data: FileRecord, is_move: bool):
         target_dir = QFileDialog.getExistingDirectory(self, "选择目标文件夹")
         if target_dir:
             if is_move:
-                self.file_service.move_files([file_data['path']], target_dir, STRATEGY_SKIP)
+                self.file_service.move_files([file_data.path], target_dir, STRATEGY_SKIP)
             else:
-                self.file_service.copy_files([file_data['path']], target_dir, STRATEGY_SKIP)
+                self.file_service.copy_files([file_data.path], target_dir, STRATEGY_SKIP)
 
-    def _delete_single_file(self, file_data: dict):
-        if ConfirmDialog.show_confirm("确认删除", f"确定要将 {file_data['name']} 移入回收站吗？", self):
-            self.file_service.delete_files([file_data['path']], use_trash=True)
+    def _delete_single_file(self, file_data: FileRecord):
+        if ConfirmDialog.show_confirm("确认删除", f"确定要将 {file_data.name} 移入回收站吗？", self):
+            self.file_service.delete_files([file_data.path], use_trash=True)

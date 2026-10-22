@@ -1,47 +1,55 @@
 # === 文件路径: src/core/signals.py ===
-from __future__ import annotations  # 兼容低版本 Python
-from PySide6.QtCore import QObject, Signal
+"""进程内事件总线（纯 Python，可从任意线程 emit，无 Qt 依赖）。
 
-class AppSignals(QObject):
+core 层通过本模块上报进度/状态变化；UI 层在 ui/qt_bridge.py 中订阅并转为 Qt Signal。
+"""
+from __future__ import annotations
+
+import logging
+import threading
+from typing import Callable
+
+logger = logging.getLogger(__name__)
+
+# ---- 事件名常量 ----
+EVENT_DATA_CHANGED = "data_changed"                      # 数据集发生变化，UI 应刷新
+EVENT_FILE_OPERATION = "file_operation_result"           # (op_type, success, message)
+EVENT_THUMBNAIL_UPDATED = "thumbnail_updated"            # (file_path, thumb_path)
+
+
+class EventBus:
+    """同步事件总线：emit 时在调用线程内依次执行订阅者。
+
+    约定：跨线程订阅者（UI）必须自行保证线程安全——QtBridge 内部只做
+    Qt Signal emit（跨线程信号为队列投递，天然安全）。
     """
-    全局自定义信号中心 (单例模式)
-    """
-    _instance = None
-    _initialized = False
 
-    def __new__(cls, *args, **kwargs):
-        if not cls._instance:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+    def __init__(self) -> None:
+        self._subs: dict[str, list[Callable]] = {}
+        self._lock = threading.Lock()
 
-    def __init__(self, parent=None):
-        if AppSignals._initialized:
-            return
-            
-        super().__init__(parent)
-        AppSignals._initialized = True
+    def subscribe(self, event: str, handler: Callable) -> None:
+        with self._lock:
+            self._subs.setdefault(event, []).append(handler)
 
-    # ==========================================
-    # 1. 扫描引擎相关信号
-    # ==========================================
-    scan_progress = Signal(int, int, str)
-    scan_finished = Signal(int, int)
+    def unsubscribe(self, event: str, handler: Callable) -> None:
+        with self._lock:
+            handlers = self._subs.get(event)
+            if handlers and handler in handlers:
+                handlers.remove(handler)
 
-    # ==========================================
-    # 2. 文件操作总线相关信号
-    # ==========================================
-    file_operation_result = Signal(str, bool, str)
+    def emit(self, event: str, *args) -> None:
+        with self._lock:
+            handlers = list(self._subs.get(event, ()))
+        for handler in handlers:
+            try:
+                handler(*args)
+            except Exception:
+                logger.exception("EventBus handler failed for event %r", event)
 
-    # ==========================================
-    # 3. 全局状态刷新信号
-    # ==========================================
-    data_changed = Signal()
-    
-    # ==========================================
-    # 4. 【新增】局部刷新与全局详情同步信号
-    # ==========================================
-    # 用于后台生成完缩略图后，通知表格只刷新对应的那一行 (file_path, thumb_path)
-    thumbnail_updated = Signal(str, str)
-    
-    # 用于任何面板选中文件时，通知主窗口更新右侧详情面板 (file_data_dict)
-    file_selected = Signal(dict)
+
+_bus = EventBus()
+
+
+def get_bus() -> EventBus:
+    return _bus

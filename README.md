@@ -94,3 +94,10 @@ FileMaster/
 欢迎提交 Issue 或 Pull Request 来改进这个项目！
 📄 许可证
 本项目采用 MIT 许可证。详见 LICENSE 文件。
+
+powershell -File build.ps1                 # 一键打包（测试 + exe + 安装包）
+powershell -File build.ps1 -SkipTests      # 跳过测试直接打包
+
+# 手动分步执行：
+file_venv\Scripts\python.exe -m PyInstaller filemaster.spec   # 重新打 exe
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\FileMaster.iss   # 重新打安装包

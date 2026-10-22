@@ -26,21 +26,30 @@ class CustomTable(QTableWidget):
         self.setColumnCount(len(columns))
         self.setHorizontalHeaderLabels(columns)
         
-    def load_data(self, data: list[dict], columns_mapping: list[str]):
+    def load_data(self, data: list, columns_mapping: list[str]):
+        """加载数据。行对象支持 dataclass（属性访问）与 dict（.get 访问）。"""
         self.clearContents()
         self.setRowCount(len(data))
-        
+
         for row_idx, row_data in enumerate(data):
             for col_idx, key in enumerate(columns_mapping):
-                value = str(row_data.get(key, ""))
+                value = self._get_value(row_data, key)
                 item = QTableWidgetItem(value)
                 if col_idx == 0:
                     item.setData(Qt.UserRole, row_data)
                 self.setItem(row_idx, col_idx, item)
-                
+
         self.resizeColumnsToContents()
-        
-    def get_selected_rows_data(self) -> list[dict]:
+
+    @staticmethod
+    def _get_value(row_data, key: str) -> str:
+        if isinstance(row_data, dict):
+            value = row_data.get(key, "")
+        else:
+            value = getattr(row_data, key, "")
+        return "" if value is None else str(value)
+
+    def get_selected_rows_data(self) -> list:
         selected_items = self.selectedItems()
         rows = sorted(set(item.row() for item in selected_items))
         result = []

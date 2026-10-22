@@ -63,7 +63,35 @@ def is_safe_path(base_dir: str, target_path: str) -> bool:
     except (ValueError, OSError):
         return False
 
-def get_video_first_frame(video_path: str, md5_hash: str = None) -> str | None:
+def open_in_explorer(path: str) -> bool:
+    """在系统文件管理器中打开文件所在目录并选中该文件。
+
+    文件已缺失时退化为打开父目录；父目录也不存在则返回 False。
+    """
+    import subprocess
+    import sys
+
+    if os.path.exists(path):
+        if sys.platform == "win32":
+            subprocess.Popen(["explorer", f"/select,{os.path.normpath(path)}"])
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", "-R", path])
+        else:
+            subprocess.Popen(["xdg-open", os.path.dirname(path)])
+        return True
+
+    parent = os.path.dirname(path)
+    if parent and os.path.isdir(parent):
+        if sys.platform == "win32":
+            os.startfile(parent)
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", parent])
+        else:
+            subprocess.Popen(["xdg-open", parent])
+        return True
+    return False
+
+def get_video_first_frame(video_path: str, md5_hash: str | None = None) -> str | None:
     """
     通用媒体缩略图生成器：支持视频首帧提取和图片缩放。
     """

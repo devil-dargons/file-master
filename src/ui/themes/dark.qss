@@ -1,0 +1,388 @@
+/* dark.qss —— 暗色主题模板，颜色占位符由 themes/palette.py 填充 */
+
+QWidget {
+    background-color: {bg};
+    color: {text};
+    font-size: 13px;
+}
+
+QMainWindow, QDialog {
+    background-color: {bg};
+}
+
+/* ---------- 菜单栏 / 菜单 ---------- */
+QMenuBar {
+    background-color: {surface};
+    border-bottom: 1px solid {border};
+    padding: 2px 4px;
+}
+QMenuBar::item {
+    background: transparent;
+    padding: 6px 12px;
+    border-radius: 4px;
+}
+QMenuBar::item:selected {
+    background-color: {surface_hover};
+}
+QMenu {
+    background-color: {surface};
+    border: 1px solid {border_strong};
+    border-radius: 6px;
+    padding: 6px;
+}
+QMenu::item {
+    padding: 6px 28px 6px 12px;
+    border-radius: 4px;
+}
+QMenu::item:selected {
+    background-color: {accent};
+    color: {accent_text};
+}
+QMenu::item:disabled {
+    color: {text_muted};
+}
+QMenu::separator {
+    height: 1px;
+    background-color: {border};
+    margin: 5px 8px;
+}
+
+/* ---------- 工具栏 ---------- */
+QToolBar {
+    background-color: {surface};
+    border-bottom: 1px solid {border};
+    spacing: 4px;
+    padding: 4px 6px;
+}
+QToolBar::separator {
+    width: 1px;
+    background-color: {border};
+    margin: 4px 6px;
+}
+QToolButton {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    padding: 5px 7px;
+    color: {text};
+}
+QToolButton:hover {
+    background-color: {surface_hover};
+    border-color: {border};
+}
+QToolButton:pressed, QToolButton:checked {
+    background-color: {selection};
+    border-color: {accent};
+}
+QToolButton:disabled {
+    color: {text_muted};
+}
+
+/* ---------- 停靠面板 ---------- */
+QDockWidget {
+    color: {text};
+    titlebar-close-icon: none;
+    titlebar-normal-icon: none;
+}
+QDockWidget::title {
+    background-color: {surface};
+    padding: 4px 8px;
+    border: 1px solid {border};
+    border-radius: 4px;
+}
+QDockWidget > QWidget {
+    background-color: {surface};
+}
+QMainWindow::separator {
+    background-color: {border};
+    width: 4px;
+    height: 4px;
+}
+QMainWindow::separator:hover {
+    background-color: {accent};
+}
+
+/* 面板统一标题栏（自定义 titleBarWidget） */
+QWidget#panelTitleBar {
+    background-color: {surface};
+    border-bottom: 1px solid {border};
+}
+QLabel#panelTitleLabel {
+    color: {text};
+    font-weight: 600;
+    padding-left: 6px;
+}
+QToolButton#panelTitleButton {
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 2px;
+}
+QToolButton#panelTitleButton:hover {
+    background-color: {surface_hover};
+}
+
+/* ---------- 页签 ---------- */
+QTabWidget::pane {
+    border: 1px solid {border};
+    border-radius: 4px;
+    top: -1px;
+}
+QTabBar::tab {
+    background-color: {tab_inactive};
+    color: {text_muted};
+    border: 1px solid {border};
+    border-bottom: none;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+    padding: 6px 14px;
+    margin-right: 2px;
+}
+QTabBar::tab:selected {
+    background-color: {tab_active};
+    color: {text};
+    border-color: {accent};
+}
+QTabBar::tab:hover:!selected {
+    background-color: {surface_hover};
+}
+
+/* ---------- 按钮 ---------- */
+QPushButton {
+    background-color: {surface_alt};
+    color: {text};
+    border: 1px solid {border_strong};
+    border-radius: 5px;
+    padding: 6px 14px;
+}
+QPushButton:hover {
+    background-color: {surface_hover};
+    border-color: {accent};
+}
+QPushButton:pressed {
+    background-color: {selection};
+}
+QPushButton:disabled {
+    color: {text_muted};
+    background-color: {surface};
+    border-color: {border};
+}
+QPushButton#primaryButton {
+    background-color: {accent};
+    color: {accent_text};
+    border: none;
+    font-weight: 600;
+}
+QPushButton#primaryButton:hover {
+    background-color: {accent_hover};
+}
+QPushButton#primaryButton:pressed {
+    background-color: {accent_pressed};
+}
+QPushButton#primaryButton:disabled {
+    background-color: {surface_alt};
+    color: {text_muted};
+}
+QPushButton#dangerButton {
+    color: {danger};
+    border-color: {danger};
+}
+
+/* ---------- 输入控件 ---------- */
+QLineEdit, QPlainTextEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+    background-color: {surface_alt};
+    color: {text};
+    border: 1px solid {border_strong};
+    border-radius: 5px;
+    padding: 5px 8px;
+    selection-background-color: {accent};
+    selection-color: {accent_text};
+}
+QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus,
+QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+    border-color: {accent};
+}
+QLineEdit:disabled, QComboBox:disabled {
+    color: {text_muted};
+}
+QComboBox::drop-down {
+    border: none;
+    width: 22px;
+}
+QComboBox QAbstractItemView {
+    background-color: {surface};
+    border: 1px solid {border_strong};
+    selection-background-color: {accent};
+    selection-color: {accent_text};
+    outline: none;
+}
+QCheckBox {
+    spacing: 6px;
+    color: {text};
+}
+QCheckBox::indicator {
+    width: 14px;
+    height: 14px;
+    border: 1px solid {border_strong};
+    border-radius: 3px;
+    background-color: {surface_alt};
+}
+QCheckBox::indicator:checked {
+    background-color: {accent};
+    border-color: {accent};
+}
+
+/* ---------- 表格 / 列表 / 树 ---------- */
+QTableWidget, QTableView, QTreeWidget, QTreeView, QListWidget, QListView {
+    background-color: {surface};
+    alternate-background-color: {surface_alt};
+    color: {text};
+    border: 1px solid {border};
+    border-radius: 4px;
+    gridline-color: {border};
+    selection-background-color: {selection};
+    selection-color: {selection_text};
+    outline: none;
+}
+QTableWidget::item, QTreeWidget::item, QListWidget::item {
+    padding: 3px 6px;
+}
+QTableWidget::item:hover, QTreeWidget::item:hover, QListWidget::item:hover {
+    background-color: {surface_hover};
+}
+QTableWidget::item:selected, QTreeWidget::item:selected, QListWidget::item:selected {
+    background-color: {selection};
+    color: {selection_text};
+}
+QHeaderView::section {
+    background-color: {surface_alt};
+    color: {text_muted};
+    border: none;
+    border-right: 1px solid {border};
+    border-bottom: 1px solid {border};
+    padding: 6px;
+    font-weight: 600;
+}
+QHeaderView::section:hover {
+    background-color: {surface_hover};
+}
+QTableCornerButton::section {
+    background-color: {surface_alt};
+    border: none;
+}
+
+/* ---------- 滚动条 ---------- */
+QScrollBar:vertical {
+    background: transparent;
+    width: 10px;
+    margin: 0;
+}
+QScrollBar::handle:vertical {
+    background: {scrollbar};
+    min-height: 30px;
+    border-radius: 5px;
+}
+QScrollBar::handle:vertical:hover {
+    background: {scrollbar_hover};
+}
+QScrollBar:horizontal {
+    background: transparent;
+    height: 10px;
+    margin: 0;
+}
+QScrollBar::handle:horizontal {
+    background: {scrollbar};
+    min-width: 30px;
+    border-radius: 5px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: {scrollbar_hover};
+}
+QScrollBar::add-line, QScrollBar::sub-line {
+    width: 0;
+    height: 0;
+}
+QScrollBar::add-page, QScrollBar::sub-page {
+    background: transparent;
+}
+
+/* ---------- 进度条 ---------- */
+QProgressBar {
+    background-color: {surface_alt};
+    border: 1px solid {border};
+    border-radius: 5px;
+    text-align: center;
+    color: {text};
+    min-height: 16px;
+}
+QProgressBar::chunk {
+    background-color: {accent};
+    border-radius: 4px;
+}
+
+/* ---------- 状态栏 ---------- */
+QStatusBar {
+    background-color: {surface};
+    color: {text_muted};
+    border-top: 1px solid {border};
+}
+QStatusBar::item {
+    border: none;
+}
+QStatusBar QLabel {
+    color: {text_muted};
+    padding: 0 8px;
+}
+
+/* ---------- 其他 ---------- */
+QSplitter::handle {
+    background-color: {border};
+}
+QSplitter::handle:hover {
+    background-color: {accent};
+}
+QGroupBox {
+    border: 1px solid {border};
+    border-radius: 6px;
+    margin-top: 12px;
+    padding-top: 8px;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 4px;
+    color: {text_muted};
+}
+QLabel[role="muted"] {
+    color: {text_muted};
+}
+QLabel[role="title"] {
+    color: {text};
+    font-weight: 600;
+    font-size: 14px;
+}
+QLabel[role="danger"] {
+    color: {danger};
+}
+QLabel[role="mutedBold"] {
+    color: {text_muted};
+    font-weight: 600;
+    min-width: 60px;
+}
+QLabel[role="card"] {
+    background-color: {surface_alt};
+    border: 1px solid {border};
+    border-radius: 6px;
+    color: {text_muted};
+}
+QFrame[role="card"] {
+    background-color: {surface_alt};
+    border: 1px solid {border};
+    border-radius: 6px;
+}
+QToolTip {
+    background-color: {surface_alt};
+    color: {text};
+    border: 1px solid {border_strong};
+    padding: 4px 6px;
+}

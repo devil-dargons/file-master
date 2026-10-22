@@ -9,10 +9,11 @@ from PySide6.QtCore import Qt
 from src.ui.widgets.custom_table import CustomTable
 from src.ui.dialogs.confirm_dialog import ConfirmDialog
 from src.ui.dialogs.rename_dialog import RenameDialog
-from src.db.database_manager import DatabaseManager
+from src.db.database import DatabaseManager
 from src.db.dao import FileDAO, TagDAO
 from src.core.file_service import FileService, STRATEGY_SKIP
-from src.core.signals import AppSignals
+from src.core.models import FileRecord
+from src.ui.qt_bridge import get_bridge
 from src.utils.tag_helper import manage_tags_for_files
 
 class TagPanel(QWidget):
@@ -29,7 +30,7 @@ class TagPanel(QWidget):
         self.file_dao = FileDAO(db_manager)
         self.tag_dao = TagDAO(db_manager)
         self.file_service = file_service
-        self.signals = AppSignals()
+        self.bridge = get_bridge()
         
         self._init_ui()
         self._bind_events()
@@ -41,7 +42,7 @@ class TagPanel(QWidget):
         # 1. 顶部提示与工具栏
         toolbar = QHBoxLayout()
         self.lbl_tip = QLabel("💡 提示：在左侧列表中按住 Ctrl 或 Shift 点击，可进行多标签组合搜索。")
-        self.lbl_tip.setStyleSheet("color: #666; font-size: 12px;")
+        self.lbl_tip.setProperty("role", "muted")
         toolbar.addWidget(self.lbl_tip)
         toolbar.addStretch()
         
@@ -95,15 +96,15 @@ class TagPanel(QWidget):
         self.table.row_right_clicked.connect(self._show_context_menu)
         
         # 监听全局数据变化（如文件被删除、重命名），刷新当前结果
-        self.signals.data_changed.connect(self._on_search_by_tags)
+        self.bridge.data_changed.connect(self._on_search_by_tags)
 
     def _load_tags(self):
         """加载所有标签到左侧列表"""
         self.tag_list.clear()
         tags = self.tag_dao.get_all_tags()
         for tag in tags:
-            item = QListWidgetItem(tag['tag_name'])
-            item.setData(Qt.UserRole, tag['id']) # 绑定 tag_id
+            item = QListWidgetItem(tag.tag_name)
+            item.setData(Qt.UserRole, tag.id) # 绑定 tag_id
             self.tag_list.addItem(item)
             
         # 加载完标签后，尝试刷新一下右侧表格（如果当前有选中的标签）
@@ -153,7 +154,7 @@ class TagPanel(QWidget):
     # ==========================================
     # 表格右键菜单逻辑 (与 FileListPanel 类似)
     # ==========================================
-    def _show_context_menu(self, row: int, data: dict, global_pos):
+    def _show_context_menu(self, row: int, data, global_pos):
         menu = QMenu(self)
         
         act_rename = menu.addAction("重命名 (批量)")
@@ -182,15 +183,15 @@ class TagPanel(QWidget):
         elif action == act_tag:
             self._on_manage_tags(selected_data)
 
-    def _on_delete(self, selected_data: list[dict]):
-        paths = [d['path'] for d in selected_data]
+    def _on_delete(self, selected_data: list[FileRecord]):
+        paths = [d.path for d in selected_data]
         msg = f"确定要将选中的 {len(paths)} 个文件移入回收站吗？"
         if ConfirmDialog.show_confirm("确认删除", msg, self):
             self.file_service.delete_files(paths, use_trash=True)
 
-    def _on_transfer(self, selected_data: list[dict], is_move: bool):
+    def _on_transfer(self, selected_data: list[FileRecord], is_move: bool):
         from PySide6.QtWidgets import QFileDialog
-        paths = [d['path'] for d in selected_data]
+        paths = [d.path for d in selected_data]
         title = "选择目标文件夹" if is_move else "选择复制目标文件夹"
         target_dir = QFileDialog.getExistingDirectory(self, title)
         if target_dir:
@@ -199,17 +200,17 @@ class TagPanel(QWidget):
             else:
                 self.file_service.copy_files(paths, target_dir, conflict_strategy=STRATEGY_SKIP)
 
-    def _on_rename(self, selected_data: list[dict]):
+    def _on_rename(self, selected_data: list[FileRecord]):
         dialog = RenameDialog(selected_data, self)
         if dialog.exec():
             rename_map = dialog.get_rename_map()
             success_count = 0
             for old_path, new_name in rename_map.items():
                 res = self.file_service.rename_file(old_path, new_name)
-                if res['data']['success_count'] > 0:
+                if res.success_count > 0:
                     success_count += 1
             QMessageBox.information(self, "重命名完成", f"成功重命名 {success_count} 个文件。")
 
-    def _on_manage_tags(self, selected_data: list[dict]):
+    def _on_manage_tags(self, selected_data: list[FileRecord]):
         # 直接调用公共辅助函数，传入当前上下文 (self) 和所需依赖
         manage_tags_for_files(self, selected_data, self.tag_dao, self.file_service)

@@ -3,7 +3,7 @@ from __future__ import annotations
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox,
     QLineEdit, QSpinBox, QCheckBox, QPushButton, QTableWidget, 
-    QTableWidgetItem, QHeaderView, QAbstractItemView, QLabel 
+    QTableWidgetItem, QAbstractItemView, QLabel 
 )
 from PySide6.QtCore import Qt
 
@@ -11,7 +11,7 @@ class RenameDialog(QDialog):
     """
     批量重命名规则配置与预览弹窗
     """
-    def __init__(self, selected_files: list[dict], parent=None):
+    def __init__(self, selected_files: list, parent=None):
         super().__init__(parent)
         self.selected_files = selected_files
         
@@ -136,25 +136,30 @@ class RenameDialog(QDialog):
         """根据规则重新生成预览列表"""
         self.preview_table.setRowCount(0)
         self.rename_map = {}
-        
+
         valid_count = 0
         for i, file_data in enumerate(self.selected_files):
-            old_name = file_data['name']
+            if isinstance(file_data, dict):
+                old_name = file_data.get('name')
+                old_path = file_data.get('path')
+            else:  # FileRecord
+                old_name = file_data.name
+                old_path = file_data.path
             new_name = self._generate_new_name(old_name, i)
-            
+
             # 只有当新名字和老名字不同时，才加入预览和结果集
             if new_name != old_name:
                 valid_count += 1
-                self.rename_map[file_data['path']] = new_name
-                
+                self.rename_map[old_path] = new_name
+
                 row = self.preview_table.rowCount()
                 self.preview_table.insertRow(row)
-                
+
                 item_old = QTableWidgetItem(old_name)
                 item_new = QTableWidgetItem(new_name)
                 # 给新文件名加点颜色提示
-                item_new.setForeground(Qt.green) 
-                
+                item_new.setForeground(Qt.green)
+
                 self.preview_table.setItem(row, 0, item_old)
                 self.preview_table.setItem(row, 1, item_new)
                 

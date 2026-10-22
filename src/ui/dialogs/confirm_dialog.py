@@ -5,7 +5,6 @@ from PySide6.QtWidgets import (
     QMessageBox, QDialog, QVBoxLayout, QHBoxLayout,
     QLabel, QRadioButton, QCheckBox, QPushButton, QButtonGroup
 )
-from PySide6.QtCore import Qt
 
 # 引入 Core 层定义的冲突策略常量，保证 UI 和后端逻辑的一致性
 from src.core.file_service import STRATEGY_OVERWRITE, STRATEGY_SKIP, STRATEGY_RENAME
