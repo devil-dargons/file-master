@@ -781,10 +781,15 @@ class MainWindow(QMainWindow):
         if reason in (QSystemTrayIcon.Trigger, QSystemTrayIcon.DoubleClick):
             self._show_from_tray()
 
-    def _show_from_tray(self) -> None:
+    def bring_to_front(self) -> None:
+        """把主窗口恢复到前台：托盘隐藏、最小化、被其他窗口遮挡时都适用。"""
+        self.setWindowState(self.windowState() & ~Qt.WindowMinimized)
         self.show()
         self.raise_()
         self.activateWindow()
+
+    def _show_from_tray(self) -> None:
+        self.bring_to_front()
 
     def _refresh_tray_lan_action(self) -> None:
         """按服务状态实时刷新托盘服务菜单项与托盘图标颜色。

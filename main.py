@@ -12,6 +12,7 @@ if BASE_DIR not in sys.path:
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
 
 # 导入我们在 Phase 2 定义的配置
 from src.config import LOG_FILE, LOG_LEVEL, LOG_FORMAT, APP_NAME, VAULT_DIR
@@ -20,6 +21,25 @@ from src.db.dao import SettingsDAO, VaultDAO
 from src.db.database import DatabaseManager
 from src.ui import themes
 from src.ui.main_window import MainWindow
+
+# 单实例本地服务名（同一机器同一用户会话内唯一）
+_SINGLE_INSTANCE_KEY = "FileMaster-SingleInstance"
+
+
+def notify_running_instance() -> bool:
+    """尝试连接已运行的实例并通知其把主窗口提到前台。
+
+    连接成功说明已有实例在运行，返回 True（本进程应直接退出）。
+    """
+    sock = QLocalSocket()
+    sock.connectToServer(_SINGLE_INSTANCE_KEY)
+    if not sock.waitForConnected(500):
+        return False
+    sock.write(b"raise")
+    sock.flush()
+    sock.waitForBytesWritten(500)
+    sock.disconnectFromServer()
+    return True
 
 def setup_logging():
     """配置全局日志系统，将日志同时输出到文件和控制台"""
@@ -47,6 +67,11 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     app.setOrganizationName(APP_NAME)
+
+    # 3.5 单实例：已有实例在运行 → 通知其显示主窗口，本进程直接退出
+    if notify_running_instance():
+        logging.info("Another instance is already running, activating it and exiting.")
+        sys.exit(0)
     
     # 4. 跨平台中文字体适配
     font = QFont()
@@ -75,6 +100,21 @@ def main():
     # 7. 实例化并显示主窗口
     window = MainWindow()
     window.show()
+
+    # 7.5 单实例服务端：后续实例启动时通过本地 socket 通知本进程，把主窗口提到前台
+    server = QLocalServer(app)
+    QLocalServer.removeServer(_SINGLE_INSTANCE_KEY)  # 清理异常退出残留的监听名（Unix 域 socket）
+    server.listen(_SINGLE_INSTANCE_KEY)
+
+    def _on_second_instance():
+        conn = server.nextPendingConnection()
+        if conn is not None:
+            conn.readAll()
+            conn.disconnectFromServer()
+            conn.deleteLater()
+        window.bring_to_front()
+
+    server.newConnection.connect(_on_second_instance)
 
     logging.info("Main window initialized and shown.")
 
