@@ -136,3 +136,6 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+# 安装包产物（超过 100MB 不应入库）
+installer/Output/

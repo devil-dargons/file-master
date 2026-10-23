@@ -26,6 +26,23 @@ class ConfirmDialog:
         return reply == QMessageBox.Yes
 
     @staticmethod
+    def show_confirm_with_remember(title: str, message: str, remember_text: str, parent=None) -> tuple[bool, bool]:
+        """显示带“记住选择”复选框的 Yes/No 确认弹窗。
+
+        :return: (是否确认, 是否勾选了记住)
+        """
+        box = QMessageBox(parent)
+        box.setWindowTitle(title)
+        box.setIcon(QMessageBox.Question)
+        box.setText(message)
+        box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        box.setDefaultButton(QMessageBox.No)  # 默认焦点在 No 上，防止误触回车
+        cb_remember = QCheckBox(remember_text)
+        box.setCheckBox(cb_remember)
+        reply = box.exec()
+        return reply == QMessageBox.Yes, cb_remember.isChecked()
+
+    @staticmethod
     def show_conflict_dialog(file_name: str, target_dir: str, parent=None) -> tuple[str | None, bool]:
         """
         显示文件冲突处理弹窗。

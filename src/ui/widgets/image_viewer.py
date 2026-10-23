@@ -1,6 +1,7 @@
 # === 文件路径: src/ui/widgets/image_viewer.py ===
 from __future__ import annotations
 import os
+import shutil
 from PySide6.QtWidgets import (
     QApplication, QDialog, QVBoxLayout, QHBoxLayout, QGraphicsView,
     QGraphicsScene, QGraphicsPixmapItem, QLabel, QPushButton, QWidget,
@@ -26,6 +27,35 @@ _MAX_TAG_CHIPS = 10
 
 # 边界回调返回类型
 _BoundaryCallback = "callable[[str], tuple[list[str], int] | None]"
+
+
+def _is_link(path: str) -> bool:
+    """是否为符号链接或 Windows 目录联结（junction），二者都只能删除链接本身。"""
+    if os.path.islink(path):
+        return True
+    is_junction = getattr(os.path, "isjunction", None)  # Python 3.12+
+    return bool(is_junction and is_junction(path))
+
+
+def _remove_link(path: str) -> None:
+    """删除链接本身，绝不跟随链接目标（Windows 目录链接需用 rmdir）。"""
+    try:
+        os.remove(path)
+    except (IsADirectoryError, PermissionError):
+        # Windows 下目录符号链接/junction 不能用 RemoveFile 删除
+        os.rmdir(path)
+
+
+def _clear_dir_contents(target_dir: str) -> None:
+    """清空文件夹内的全部内容（保留文件夹本身），链接只删链接、不清理其目标。"""
+    for entry in os.listdir(target_dir):
+        entry_path = os.path.join(target_dir, entry)
+        if _is_link(entry_path):
+            _remove_link(entry_path)
+        elif os.path.isdir(entry_path):
+            shutil.rmtree(entry_path)
+        else:
+            os.remove(entry_path)
 
 
 class ImageViewer(QDialog):
@@ -79,6 +109,9 @@ class ImageViewer(QDialog):
         self._tag_dao = tag_dao
         self._file_service = file_service
         self._tags_enabled = all(x is not None for x in (file_dao, tag_dao, file_service))
+
+        # 清空目标文件夹确认弹窗：本次打开期间勾选“记住”后不再重复确认
+        self._skip_clear_confirm = False
 
         self.item: QGraphicsPixmapItem | None = None
 
@@ -435,11 +468,16 @@ class ImageViewer(QDialog):
         file_exists = os.path.exists(path)
 
         menu = QMenu(self)
+        act_top = menu.addAction("置顶")
+        act_top.setCheckable(True)
+        act_top.setChecked(bool(self.windowFlags() & Qt.WindowStaysOnTopHint))
+        menu.addSeparator()
         act_open_dir = menu.addAction("打开文件目录")
         menu.addSeparator()
         act_rename = menu.addAction("重命名...")
         act_move = menu.addAction("移动到...")
         act_copy = menu.addAction("复制到...")
+        act_clear_copy = menu.addAction("清空目标文件夹并复制...")
         menu.addSeparator()
 
         copy_menu = menu.addMenu("复制信息")
@@ -455,7 +493,7 @@ class ImageViewer(QDialog):
         act_delete_db = menu.addAction("仅删除数据库记录 (保留文件)")
 
         # 文件已缺失时禁用物理操作；未入库时禁用依赖数据库记录的项
-        for act in (act_rename, act_move, act_copy, act_delete_phys):
+        for act in (act_rename, act_move, act_copy, act_clear_copy, act_delete_phys):
             act.setEnabled(file_exists)
         act_copy_md5.setEnabled(record is not None and bool(record.md5))
         act_tag.setEnabled(record is not None)
@@ -464,7 +502,9 @@ class ImageViewer(QDialog):
         action = menu.exec(global_pos)
         if action is None:
             return
-        if action == act_open_dir:
+        if action == act_top:
+            self._toggle_always_on_top(act_top.isChecked())
+        elif action == act_open_dir:
             self._open_file_dir(path)
         elif action == act_rename:
             self._ctx_rename(record)
@@ -472,6 +512,8 @@ class ImageViewer(QDialog):
             self._ctx_transfer(is_move=True)
         elif action == act_copy:
             self._ctx_transfer(is_move=False)
+        elif action == act_clear_copy:
+            self._ctx_clear_and_copy()
         elif action == act_copy_path:
             self._copy_to_clipboard(path)
         elif action == act_copy_dir:
@@ -518,6 +560,18 @@ class ImageViewer(QDialog):
         else:
             QMessageBox.warning(self, "重命名失败", "\n".join(res.errors) or res.message)
 
+    def _toggle_always_on_top(self, enable: bool) -> None:
+        """切换窗口置顶（仅由用户主动开启，默认不置顶）。"""
+        flags = self.windowFlags()
+        if enable:
+            flags |= Qt.WindowStaysOnTopHint
+        else:
+            flags &= ~Qt.WindowStaysOnTopHint
+        self.setWindowFlags(flags)
+        # 修改窗口标志会重建原生窗口并隐藏，需要重新显示
+        self.show()
+        self._fit_and_center()
+
     def _ctx_transfer(self, is_move: bool) -> None:
         """移动/复制当前图片到目标文件夹（冲突自动重命名）。
 
@@ -538,6 +592,48 @@ class ImageViewer(QDialog):
         self.data_changed.emit()
         if is_move:
             self._remove_current_from_list()
+
+    def _ctx_clear_and_copy(self) -> None:
+        """清空指定文件夹的全部内容，再把当前图片复制进去。
+
+        目标文件夹若与当前图片所在文件夹相同会一并删掉源文件，因此禁止选择。
+        """
+        from src.ui.dialogs.confirm_dialog import ConfirmDialog
+
+        path = self._image_list[self._index]
+        target_dir = QFileDialog.getExistingDirectory(self, "选择要清空并复制的目标文件夹")
+        if not target_dir:
+            return
+
+        same_dir = os.path.normcase(os.path.abspath(target_dir)) == \
+            os.path.normcase(os.path.abspath(os.path.dirname(path)))
+        if same_dir:
+            QMessageBox.warning(self, "无法操作", "目标文件夹与当前图片所在文件夹相同，清空会删除源文件，请选择其他文件夹。")
+            return
+
+        if not self._skip_clear_confirm:
+            ok, remember = ConfirmDialog.show_confirm_with_remember(
+                "确认清空文件夹",
+                f"将删除该文件夹中的全部内容：\n\n{target_dir}\n\n清空后再把当前图片复制进去，确定继续吗？",
+                "记住选择（本次打开预览期间不再确认）",
+                self)
+            if not ok:
+                return
+            if remember:
+                self._skip_clear_confirm = True
+
+        # 清空目标文件夹内容（保留文件夹本身，符号链接/junction 只删链接）
+        try:
+            _clear_dir_contents(target_dir)
+        except Exception as e:
+            QMessageBox.warning(self, "清空失败", f"清空目标文件夹时出错：\n{e}")
+            return
+
+        res = self._file_service.copy_files([path], target_dir, conflict_strategy=STRATEGY_RENAME)
+        if res.success_count <= 0:
+            QMessageBox.warning(self, "复制失败", "\n".join(res.errors) or res.message)
+            return
+        self.data_changed.emit()
 
     def _ctx_manage_tags(self, record) -> None:
         """通过标签管理弹窗编辑当前图片的标签（复用全局标签管理逻辑）。"""
